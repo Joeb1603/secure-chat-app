@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Home</title>
+</head>
+<body>
+    <h1>Welcome {{ current_user.username }}</h1>
+    <ul>
+        <h3>Contacts:</h3>
+        {% for user_id in user_ids %}
+        <li><a href="/chat/{{user_id}}">{{user_id}}</li>
+        {% endfor %}
+    </ul>
+    <form action="/logout">
+        <button type="submit">Log Out</button>
+    </form>
+
+</body>
+
+</html>
+
+<script>// TODO: make an option on homepage to clear (overwrite with 0's first) the local storage</script>

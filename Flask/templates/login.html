@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Log In</title>
+</head>
+<body>
+    <h1>Please log in</h1>
+    <form method = "POST" action="/login">
+        <div>
+            <label>Enter your username:</label>
+            <input type="text" name="username" id="username" required>
+        </div>
+        <div>
+            <label>Enter Password:</label>
+            <input type="password" name="password" required>
+        </div>
+        <div>
+            <input type="hidden" name="browserFingerprint" id="browserFingerprint">
+        </div>
+        <button type="submit">Submit</button>
+    </form>
+</body>
+
+  <script src="https://cdn.jsdelivr.net/npm/@thumbmarkjs/thumbmarkjs/dist/thumbmark.umd.js"></script>
+  <script>
+        ThumbmarkJS.getFingerprint().then(
+    function(fp) {
+        document.getElementById('browserFingerprint').value = fp;
+    }
+    );
+
+    var loginFailed = "{{login_failed}}";
+    if (loginFailed === "True") {
+            var username = "{{ username}}";
+            document.getElementById('username').value = username;
+            setTimeout(function() {
+            alert("Login failed. Please try again.");
+            }, 100);
+        }
+    </script>
+    
+</html>

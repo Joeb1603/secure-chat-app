@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Home</title>
+</head>
+<body>
+    
+    <h1>Logged in user:{{ current_user.username }}</h1>
+    
+    <h2>Chatting with {{target_user_id}}</h2>
+    
+    <div id="messages">
+    <b>Contents of chat:</b>
+    <br>
+    <b>----------------------------------------------</b>
+    </div>
+
+    <b>----------------------------------------------</b>
+    
+    <br> 
+
+    <form id="send_message_form">
+        <input type = "text" id = "message_input" placeholder="Message:">
+        <button type="submit">Send</button>
+        <button type="submit" id="encrypt_button">Send Encrypted</button>
+    </form>
+    
+    <form id="send_file_form">
+        <input type="file" id="file_input" name="file_input">
+        <button type="submit">Send File</button>
+    </form>
+    <br> 
+    <form id="encryption_form" action="none">
+        <input type = "text" id ="key_input" placeholder="Encryption Key:">
+        <button id="decrypt_all_button" onclick="decryptAll(); return false;">Decrypt All</button>
+    </form>
+
+
+    <p>
+        <input type="checkbox" id="save_chat_checkbox"checked>
+        <label for="save_chat_checkbox">Save received messages locally</label>
+        <button id="clearChatHistoryButton" type="button" onclick="clearChatHistory()">Clear Chat History (all chats)</button>
+    </p>
+    
+    <br>
+
+    <form action="/home">
+        <button type="submit">Home</button>
+    </form>
+    <br>
+    <p>
+        Security tips:
+        <ul>
+            <li>Only trust users identity if they have confirmed it to you externally (avoid impersonation attemps such as "hey, its me John Smith on a new account").</li>
+            <li>Only share encryption keys outside of this platform (ideally in person).</li>
+            <li>Have a unique encryption key with each person (also further helps combat impersonation attemps).</li>
+        </ul>
+    </p>
+
+</body>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.2.0/socket.io.js"></script>
+
+<script>
+// TODO: Add something to show if a user is online (do this by checking the database)
+// TODO: add an option to clear the history for this chat
+// TODO: add a checkbox for if messages should be saved to local storage
+
+window.onload = function() {  
+    const savedMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
+    savedMessages.forEach(message => {
+        if (message.target === "{{target_user_id}}" && message.username === "{{current_user.username}}") {
+            appendMessage(message);
+        }
+        // TODO: Can probably do this more concisely than two if statements
+        if (message.target === "{{current_user.username}}" && message.username === "{{target_user_id}}") {
+            appendMessage(message);
+        }
+    });
+};
+
+    const socket = io.connect("{{ip_addr}}");
+    socket.on('connect', function(){
+        socket.emit('user_connect',{
+            username: "{{current_user.username}}",
+            target: "{{target_user_id}}"
+        })
+    })
+
+    let message_input = document.getElementById('message_input');
+
+    document.getElementById('send_message_form').onsubmit = function (e) {
+        e.preventDefault();
+        let message = message_input.value;//.trim();
+        let key = key_input.value;
+        let buttonClicked = e.submitter.id;
+        let encrypted = false;
+        if (message.length){
+            if (buttonClicked == "encrypt_button") {
+                encrypted = true;
+
+                encryptMessage(message, key)
+                .then(encryptedMessage => {
+                    message = encryptedMessage;
+                    // Repeated code womp womp
+                    socket.emit('message_sent',{
+                    username: "{{current_user.username}}",
+                    target: "{{target_user_id}}",
+                    message: message,
+                    is_encrypted: encrypted
+                    })
+                    message_input.value = '';
+                })
+                .catch(error => {
+                    console.error("Encryption error:", error);
+                });
+            } else {
+                 // Repeated code womp womp
+                socket.emit('message_sent',{
+                    username: "{{current_user.username}}",
+                    target: "{{target_user_id}}",
+                    message: message,
+                    is_encrypted: encrypted
+                })
+                message_input.value = '';
+            }
+        }
+    }
+
+    socket.on('receive_message', function (data) {
+        let save_chat_checkbox = document.getElementById('save_chat_checkbox');
+
+        if (data.is_encrypted){
+            const newNode = document.createElement('div');
+            newNode.innerHTML = `<b>${data.username}:&nbsp;</b> <button value="${data.message}" class="decrypt-button" onclick="decryptMessage(this, this.value)">Decrypt</button>`;
+            document.getElementById('messages').appendChild(newNode);
+        }else{
+            const newNode = document.createElement('div');
+            newNode.innerHTML = `<b>${data.username}:&nbsp;</b> ${data.message}`;
+            document.getElementById('messages').appendChild(newNode);
+        }
+        if (data.message !== "Message failed to send, target user not online" & save_chat_checkbox.checked) {
+                saveMessageToLocalStorage(data);
+            }
+    });
+
+    socket.on('receive_file', function (data) {
+        console.log('Received data type:', typeof data.fileData);
+        console.log('Received data size:', data.fileData.byteLength);
+        const newNode = document.createElement('div');
+        const fileBlob = new Blob([data.fileData], { type: "application/octet-stream" });
+        const fileURL = URL.createObjectURL(fileBlob);
+        newNode.innerHTML = `<b>${data.username}:&nbsp;</b> Download: <a href="${fileURL}" download="${data.fileName}">${data.fileName}</a>`;
+        document.getElementById('messages').appendChild(newNode);
+    });
+
+function appendMessage(data) {
+        const newNode = document.createElement('div');
+        if (data.is_encrypted){
+            newNode.innerHTML = `<b>${data.username}:&nbsp;</b> <button value="${data.message}" class="decrypt-button" onclick="decryptMessage(this, this.value)">Decrypt</button>`;
+        }else{
+            newNode.innerHTML = `<b>${data.username}:&nbsp;</b> ${data.message}`;
+        }
+        document.getElementById('messages').appendChild(newNode);
+    }
+
+    function saveMessageToLocalStorage(message) {
+        let savedMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
+        savedMessages.push(message);
+        localStorage.setItem('chatMessages', JSON.stringify(savedMessages));
+    }
+
+    function clearChatHistory(){
+        let savedMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
+        let replacedMessages = savedMessages.map(message => {
+        let replacedText = {};
+        for (let key in message) {
+            if (typeof message[key] === 'string') {
+                replacedText[key] = message[key].replace(/./g, '0');
+            } else {
+                replacedText[key] = null; 
+            }
+        }
+        return replacedText;
+    });
+    localStorage.setItem('chatMessages', JSON.stringify(replacedMessages));
+
+    replacedMessages = savedMessages.map(message => {
+        let replacedText = {};
+        for (let key in message) {
+            replacedText[key] =null;
+        }
+        return replacedText;
+    });
+    localStorage.setItem('chatMessages', JSON.stringify(replacedMessages));
+    
+    localStorage.removeItem('chatMessages');
+
+    }
+</script>
+
+<script>
+    document.getElementById('send_file_form').onsubmit = function (e) {
+        e.preventDefault();
+        let fileInput = document.getElementById('file_input');
+        if(fileInput.files.length) {
+            let file = fileInput.files[0];
+            let fileName = file.name;
+            let reader = new FileReader();
+
+            reader.onload = function(loadEvent) {
+                let arrayBuffer = loadEvent.target.result;
+                socket.emit('file_sent', {
+                    username: "{{current_user.username}}",
+                    target: "{{target_user_id}}",
+                    fileData: arrayBuffer,
+                    fileName: fileName
+                });
+                document.getElementById('file_input').value = '';
+            };
+            reader.readAsArrayBuffer(file);
+        }
+    };
+
+    async function encryptMessage(plaintext, password) {
+        const textEncoder = new TextEncoder();
+        const message = plaintext;
+
+        const passwordBuffer = textEncoder.encode(password);
+        const salt = new Uint8Array(Array.from(atob("mp44pqKc2xuQNyth3XQVgw=="), c => c.charCodeAt(0))); // yeah i know //crypto.getRandomValues(new Uint8Array(16)); // Generate a random salt
+        const keyMaterial = await crypto.subtle.importKey("raw", passwordBuffer, {name: "PBKDF2"}, false, ["deriveKey"]);
+        const derivedKey = await crypto.subtle.deriveKey(
+            {name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256"},
+            keyMaterial,
+            {name: "AES-GCM", length: 256},
+            true,
+            ["encrypt"]
+        );
+
+        const encodedMessage = textEncoder.encode(message);
+        const encryptedData = await crypto.subtle.encrypt({ name: "AES-GCM", iv: salt }, derivedKey, encodedMessage);
+        const encryptedMessage = new Uint8Array(encryptedData);
+
+        const ciphertext = btoa(String.fromCharCode.apply(null, encryptedMessage));
+
+        return ciphertext
+
+    }
+
+    async function decryptMessage(button, value) {
+        try {
+            const textEncoder = new TextEncoder();
+            const textDecoder = new TextDecoder();
+
+            const encryptedMessage = value
+            const password = document.getElementById("key_input").value;
+            const salt = "mp44pqKc2xuQNyth3XQVgw=="; //So secure I know //document.getElementById("salt").textContent;
+
+            const passwordBuffer = textEncoder.encode(password);
+            const keyMaterial = await crypto.subtle.importKey("raw", passwordBuffer, { name: "PBKDF2" }, false, ["deriveKey"]);
+            const derivedKey = await crypto.subtle.deriveKey(
+                { name: "PBKDF2", salt: new Uint8Array(atob(salt).split("").map(char => char.charCodeAt(0))), iterations: 100000, hash: "SHA-256" },
+                keyMaterial,
+                { name: "AES-GCM", length: 256 },
+                true,
+                ["decrypt"]
+            );
+            
+            const encryptedData = Uint8Array.from(atob(encryptedMessage), c => c.charCodeAt(0));
+
+            const decryptedData = await crypto.subtle.decrypt(
+                { name: "AES-GCM", iv: new Uint8Array(atob(salt).split("").map(char => char.charCodeAt(0))) },
+                derivedKey,
+                encryptedData
+            );
+
+            const decryptedMessage = textDecoder.decode(decryptedData);
+
+            const parentNode = button.parentNode;
+            const usernameElement = parentNode.querySelector('b');
+            const username = usernameElement.textContent;
+            const newHTML = `<b>${username}</b> ${decryptedMessage}`;
+            parentNode.innerHTML = newHTML;
+
+        } catch (error) {
+        //alert("Decryption failed. Please check your password and try again.");
+        }
+        }
+        function decryptAll() {
+
+        const decryptButtons = document.querySelectorAll('.decrypt-button');
+        decryptButtons.forEach(button => {
+            decryptMessage(button, button.value);
+        });
+    }
+    </script>
+</html>

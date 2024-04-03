@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Log In</title>
+</head>
+<body>
+    <h1>You have been invited to join the secure chat app as: {{username}}</h1>
+    <form method = "POST" action="/register_submit"> 
+            <label>Enter New Password:</label>
+            <input type="password" name="password" required>
+            <input type="hidden" name="browserFingerprint" id="browserFingerprint">
+        <button type="submit">Submit</button>
+        <br>
+        <input type="checkbox" id="agreeCheckbox" required>
+            <!--<label for="agreeCheckbox">By registering, I consent to the minimal collection and storage of my data necessary for utilizing this service.</label><br><br>-->
+            <label for="agreeCheckbox">Registering, I do, consent to, hmm. Minimal data collection and storage, necessary for service utilization, hmm. May the force of privacy be with you, yes.</label><br><br>
+    </form>
+</body>
+
+<script src="https://cdn.jsdelivr.net/npm/@thumbmarkjs/thumbmarkjs/dist/thumbmark.umd.js"></script>
+<script>
+      ThumbmarkJS.getFingerprint().then(
+function(fp) {
+    document.getElementById('browserFingerprint').value = fp;
+    console.log(fp);
+}
+);
+  </script>
+  
+</html>
